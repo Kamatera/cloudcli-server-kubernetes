@@ -1,0 +1,25 @@
+cluster:
+  name: testk8s  # required, used as a prefix for all resources
+  datacenter: IL  # required
+  ssh-key:  # required, can be either a string or path to a file, this is used for all nodes
+    private: ~/.ssh/id_rsa
+    public: ~/.ssh/id_rsa.pub
+  private-network:
+    name: lan-82145-testlan8  # required, must be created in advance with enough ips for all the nodes
+  # default-node-config:  # optional, default values for all nodes, global defaults are defined in common.DEFAULT_NODE_CONFIG
+  #   cpu: 2B
+  #   memory: 4096
+  # server: https://1.2.3.4:9345  # optional, in case you want to use a specific server as the main cluster server
+  # token:  # optional, to use as the cluster join token, if not provided will try to get it from controlplane-1 node
+
+node-pools:
+  # controlplane:  # optional, the controlplane node pool is created anyway for the first node
+  #   nodes: 1  # must always be set to 1 - no support for high availability yet
+  #   default-node-config:  # optional, default values for all nodes in this pool
+  worker1:
+    nodes: 3
+    default-node-config:
+      cpu: 4B
+      memory: 2048
+  worker2:
+    nodes: [5, 6]  # nodes can also be specified like this to keep specific node names
