@@ -102,7 +102,7 @@ def create_cluster(cnf, creds=None):
 
 
 def add_worker(cnf, nodepool_name, node_number, creds=None):
-    cluster_server, cluster_token = common.get_cluster_server_token(cnf)
+    cluster_server, cluster_token = common.get_cluster_server_token(cnf, creds=creds)
     return create_server(cnf, nodepool_name, node_number, cluster_server=cluster_server, cluster_token=cluster_token, creds=creds)
 
 
