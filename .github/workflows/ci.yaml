@@ -14,6 +14,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
-          docker build -t ${DOCKER_IMAGE} . &&\
+          docker build -t ${DOCKER_IMAGE} --build-arg VERSION=${{ github.sha }} . &&\
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin &&\
           docker push ${DOCKER_IMAGE}

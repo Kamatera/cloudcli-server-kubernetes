@@ -9,6 +9,8 @@ RUN pip install -r requirements.txt
 RUN mkdir cloudcli_server_kubernetes && touch cloudcli_server_kubernetes/__init__.py && touch README.md
 RUN pip install -e .
 COPY cloudcli_server_kubernetes ./cloudcli_server_kubernetes
+ARG VERSION=docker-local-development
+RUN echo VERSION = "'$VERSION'" > cloudcli_server_kubernetes/version.py
 ENV PYTHONUNBUFFERED=1
 ENV MAX_WORKERS=4
 ENV TZ=UTC
