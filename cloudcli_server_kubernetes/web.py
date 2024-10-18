@@ -90,6 +90,6 @@ app = FastAPI(
     version=version.VERSION,
     title='Kamatera Cloud CLI Kubernetes',
     lifespan=lifespan,
-    docs_url='/k8s/docs',
+    root_path='/k8s',
 )
 app.add_exception_handler(Exception, global_exception_handler)
