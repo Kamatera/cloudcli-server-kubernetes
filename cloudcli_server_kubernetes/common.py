@@ -38,40 +38,43 @@ def parse_file(file):
 
 
 def parse_config(cnf):
-    if os.path.exists(cnf):
-        with open(cnf) as f:
-            if cnf.endswith('.json'):
-                cnf = json.load(f)
-            elif cnf.endswith('.yaml'):
-                cnf = YAML(typ='safe').load(f)
-            else:
-                raise ValueError(f'Unsupported file format: {cnf}')
-    else:
-        if not isinstance(cnf, dict):
-            cnf = json.loads(cnf)
-    cnf['cluster']['ssh-key']['private'] = parse_file(cnf['cluster']['ssh-key']['private'])
-    cnf['cluster']['ssh-key']['public'] = parse_file(cnf['cluster']['ssh-key']['public'])
-    default_node_config = cnf['cluster'].get('default-node-config') or {}
-    node_pools = cnf.get('node-pools') or {}
-    if 'controlplane' not in node_pools:
-        node_pools['controlplane'] = {'nodes': 1}
-    for node_pool_name, node_pool_config in node_pools.items():
-        nodes = node_pool_config.get('nodes') or []
-        if isinstance(nodes, int):
-            nodes = {int(i): {} for i in range(1, nodes + 1)}
-        elif isinstance(nodes, list):
-            nodes = {int(i): {} for i in nodes}
-        assert isinstance(nodes, dict)
-        for k in nodes:
-            nodes[k] = {
-                **DEFAULT_NODE_CONFIG,
-                **default_node_config,
-                **(node_pool_config.get('default-node-config') or {}),
-            }
-        node_pools[node_pool_name]['nodes'] = nodes
-    cnf['node-pools'] = node_pools
-    assert len(cnf['node-pools']['controlplane']['nodes']) == 1
-    return cnf
+    try:
+        if os.path.exists(cnf):
+            with open(cnf) as f:
+                if cnf.endswith('.json'):
+                    cnf = json.load(f)
+                elif cnf.endswith('.yaml'):
+                    cnf = YAML(typ='safe').load(f)
+                else:
+                    raise ValueError(f'Unsupported file format: {cnf}')
+        else:
+            if not isinstance(cnf, dict):
+                cnf = json.loads(cnf)
+        cnf['cluster']['ssh-key']['private'] = parse_file(cnf['cluster']['ssh-key']['private'])
+        cnf['cluster']['ssh-key']['public'] = parse_file(cnf['cluster']['ssh-key']['public'])
+        default_node_config = cnf['cluster'].get('default-node-config') or {}
+        node_pools = cnf.get('node-pools') or {}
+        if 'controlplane' not in node_pools:
+            node_pools['controlplane'] = {'nodes': 1}
+        for node_pool_name, node_pool_config in node_pools.items():
+            nodes = node_pool_config.get('nodes') or []
+            if isinstance(nodes, int):
+                nodes = {int(i): {} for i in range(1, nodes + 1)}
+            elif isinstance(nodes, list):
+                nodes = {int(i): {} for i in nodes}
+            assert isinstance(nodes, dict)
+            for k in nodes:
+                nodes[k] = {
+                    **DEFAULT_NODE_CONFIG,
+                    **default_node_config,
+                    **(node_pool_config.get('default-node-config') or {}),
+                }
+            node_pools[node_pool_name]['nodes'] = nodes
+        cnf['node-pools'] = node_pools
+        assert len(cnf['node-pools']['controlplane']['nodes']) == 1
+        return cnf
+    except Exception as e:
+        raise CloudcliApiException(f"Failed to parse kconfig: {e}") from e
 
 
 def cloudcli_server_request(path, creds=None, **kwargs):

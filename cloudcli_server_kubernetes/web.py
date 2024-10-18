@@ -2,12 +2,62 @@ import logging
 import traceback
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, logger, Request, APIRouter, Depends
+from fastapi import FastAPI, logger, Request, APIRouter, Depends, Form
 
 from . import common, config, version, api
 
 
 router = APIRouter()
+
+
+def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=True):
+    flags = flags or []
+    command = {
+        "use": use,
+        "short": short,
+        "long": long or short,
+        "flags": flags,
+        "run": {
+            "cmd": "post",
+            "path": f"/k8s/{use}",
+            "method": "post",
+        }
+    }
+    if kconfig:
+        command["flags"] = [
+            {
+                "name": "kconfig",
+                "required": True,
+                "usage": "Path to Kamatera cluster configuration file in JSON or YAML format",
+            },
+            *command["flags"]
+        ]
+    if wait:
+        command["wait"] = True
+        command["flags"] += [{
+            "name": "wait",
+            "usage": "Wait for command execution to finish only then exit cli.",
+            "bool": True,
+            "processing": [
+                {
+                    "method": "validateAllowedOutputFormats",
+                    "args": ["human"]
+                }
+            ]
+        }]
+    command["run"]["fields"] = [{"name": f["name"], "flag": f["name"]} for f in flags]
+    if kconfig:
+        command["run"]["fields"] = [
+            {
+                "name": "kconfig",
+                "flag": "kconfig",
+                "fromFile": True,
+            },
+            *command["run"]["fields"]
+        ]
+    return {
+        "x-cloudcli-k8s": command,
+    }
 
 
 async def get_creds(request: Request):
@@ -20,23 +70,46 @@ async def root():
     return {"ok": True}
 
 
-@router.post('/create_cluster')
-async def create_cluster(config_: str, creds: tuple = Depends(get_creds)):
-    return {
-        'command_id': api.create_cluster(common.parse_config(config_), creds=creds)
-    }
+@router.post('/create_cluster', openapi_extra=get_openapi_extra(
+    "create_cluster",
+    "Create a cluster",
+    wait=True
+))
+async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
+    return [
+        api.create_cluster(common.parse_config(kconfig), creds=creds)
+    ]
 
 
-@router.post('/add_worker')
-async def add_worker(config_: str, nodepool_name: str, node_number: int, creds: tuple = Depends(get_creds)):
-    return {
-        'command_id': api.add_worker(common.parse_config(config_), nodepool_name, node_number, creds=creds)
-    }
+@router.post('/add_worker', openapi_extra=get_openapi_extra(
+    "add_worker",
+    "Add a worker node",
+    [
+        {
+            "name": "nodepool_name",
+            "required": True,
+            "usage": "Nodepool name",
+        },
+        {
+            "name": "node_number",
+            "required": True,
+            "usage": "Node number",
+        }
+    ],
+    wait=True
+))
+async def add_worker(kconfig: str = Form(), nodepool_name: str = Form(), node_number: str = Form(), creds: tuple = Depends(get_creds)):
+    return [
+        api.add_worker(common.parse_config(kconfig), nodepool_name, node_number, creds=creds)
+    ]
 
 
-@router.post('/status')
-async def status(config_: str, full: bool = False, creds: tuple = Depends(get_creds)):
-    return api.cluster_status(common.parse_config(config_), full, creds=creds)
+@router.post('/status', openapi_extra=get_openapi_extra(
+    "status",
+    "Get cluster status"
+))
+async def status(kconfig: str = Form(), full: bool = False, creds: tuple = Depends(get_creds)):
+    return common.IndentedJSONResponse(api.cluster_status(common.parse_config(kconfig), full, creds=creds))
 
 
 @asynccontextmanager

@@ -1,5 +1,5 @@
 cluster:
-  name: testk8s  # required, used as a prefix for all resources
+  name: testk8s2  # required, used as a prefix for all resources
   datacenter: IL  # required
   ssh-key:  # required, can be either a string or path to a file, this is used for all nodes
     private: ~/.ssh/id_rsa
