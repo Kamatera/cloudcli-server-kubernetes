@@ -42,7 +42,7 @@ async def status(config_: str, full: bool = False, creds: tuple = Depends(get_cr
 @asynccontextmanager
 async def lifespan(app_):
     common.setup_logging(handlers=logger.logger.handlers)
-    app_.include_router(router, prefix='/k8s')
+    app_.include_router(router)
     logging.info('App initialized')
     schema = app.openapi()
     schema['components']["securitySchemes"] = {
