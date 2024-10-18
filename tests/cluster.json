@@ -1,0 +1,28 @@
+{
+  "cluster": {
+    "name": "testk8s",
+    "datacenter": "IL",
+    "ssh-key": {
+      "private": "~/.ssh/id_rsa",
+      "public": "~/.ssh/id_rsa.pub"
+    },
+    "private-network": {
+      "name": "lan-82145-testlan8"
+    }
+  },
+  "node-pools": {
+    "worker1": {
+      "nodes": 3,
+      "default-node-config": {
+        "cpu": "4B",
+        "memory": 2048
+      }
+    },
+    "worker2": {
+      "nodes": [
+        5,
+        6
+      ]
+    }
+  }
+}

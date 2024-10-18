@@ -21,19 +21,19 @@ Create the cluster configuration file, you can use the example `tests/cluster_fu
 Create the cluster (this creates the main controlplane node):
 
 ```
-cloudclik8s create cluster.yaml
+poetry run cloudclik8s create cluster.yaml
 ```
 
 Add a worker node:
 
 ```
-cloudclik8s add-worker cluster.yaml <NODEPOOL_NAME> <NODE_NUMBER>
+poetry run cloudclik8s add-worker cluster.yaml <NODEPOOL_NAME> <NODE_NUMBER>
 ```
 
 Get cluster status with full details for all nodes:
 
 ```
-cloudclik8s status cluster.yaml
+poetry run cloudclik8s status cluster.yaml
 ```
 
 SSH to the controlplane node to run kubectl commands (you can use the IP from the status command):
@@ -46,3 +46,9 @@ kubectl get nodes
 Kubernetes is not accessible from the external internet, only from the internal ip of the controlplane node
 
 kuberenetes ingress (ports 80, 443) and ssh are the only services exposed to the internet
+
+Run the Web app:
+
+```
+poetry run uvicorn cloudcli_server_kubernetes.web:app --reload
+```

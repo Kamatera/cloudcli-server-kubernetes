@@ -1,8 +1,8 @@
 import json
-import time
+import logging
 import base64
 
-from . import common, config
+from . import common
 
 
 RKE2_VERSION = 'v1.31.1+rke2r1'
@@ -51,7 +51,7 @@ def get_server_init_script(cnf, nodepool_name=None, node_number=None, is_server=
     ])
 
 
-def create_server(cnf, nodepool_name=None, node_number=None, is_server=False, cluster_server=None, cluster_token=None):
+def create_server(cnf, nodepool_name=None, node_number=None, is_server=False, cluster_server=None, cluster_token=None, creds=None):
     """
     Internal function to initiate server creation
     returns command_id of the create server command
@@ -64,9 +64,10 @@ def create_server(cnf, nodepool_name=None, node_number=None, is_server=False, cl
     else:
         assert node_number and nodepool_name and nodepool_name != 'controlplane'
         node_number = int(node_number)
-    server_info = common.get_server_info(cluster_name, nodepool_name, node_number)
-    assert not server_info, 'Server already exists'
-    command_id = common.find_server_command_in_queue('Create Server', cluster_name, nodepool_name, node_number)
+    server_info = common.get_server_info(cluster_name, nodepool_name, node_number, creds=creds)
+    if server_info:
+        raise CloudcliApiException('Server already exists')
+    command_id = common.find_server_command_in_queue('Create Server', cluster_name, nodepool_name, node_number, creds=creds)
     if not command_id:
         node_config = cnf['node-pools'][nodepool_name]['nodes'][node_number]
         data = {
@@ -88,36 +89,39 @@ def create_server(cnf, nodepool_name=None, node_number=None, is_server=False, cl
             "poweronaftercreate": "yes",
             "script-file": get_server_init_script(cnf, nodepool_name, node_number, is_server, cluster_server, cluster_token)
         }
-        if config.CLOUDCLI_DEBUG:
-            print(json.dumps(data, indent=2))
-        status, res = common.cloudcli_server_request("/service/server", method="POST", json=data)
-        assert status == 200, f'Unexpected error {status}: {res}'
-        assert len(res) == 1, f'Unexpected response: {res}'
+        logging.debug(f'Creating server\n{json.dumps(data, indent=2)}')
+        status, res = common.cloudcli_server_request("/service/server", method="POST", json=data, creds=creds)
+        if status != 200 or len(res) != 1:
+            raise CloudcliApiException(f'Create server failed: {status} {res}')
         command_id = res[0]
     return command_id
 
 
-def create_cluster(cnf):
-    return create_server(cnf, is_server=True)
+def create_cluster(cnf, creds=None):
+    return create_server(cnf, is_server=True, creds=creds)
 
 
-def add_worker(cnf, nodepool_name, node_number):
+def add_worker(cnf, nodepool_name, node_number, creds=None):
     cluster_server, cluster_token = common.get_cluster_server_token(cnf)
-    return create_server(cnf, nodepool_name, node_number, cluster_server=cluster_server, cluster_token=cluster_token)
+    return create_server(cnf, nodepool_name, node_number, cluster_server=cluster_server, cluster_token=cluster_token, creds=creds)
 
 
-def cluster_status(cnf, full=False):
-    cluster_server, _ = common.get_cluster_server_token(cnf)
+def cluster_status(cnf, full=False, creds=None):
+    controlplane_server_info = common.get_controlplane_server_info(cnf, creds=creds)
+    controlplane_public_ip, controlplane_private_ip = common.get_server_ips(controlplane_server_info)
+    cluster_server, _ = common.get_cluster_server_token(cnf, creds=creds, controlplane_server_info=controlplane_server_info)
     status = {
         'cluster_server': cluster_server,
-        'controlplane_server': common.get_server_info(cnf['cluster']['name'], 'controlplane', 1),
+        'controlplane_public_ip': controlplane_public_ip,
+        'controlplane_private_ip': controlplane_private_ip,
+        'controlplane_server': controlplane_server_info,
         'node_pools': {}
     }
     for node_pool_name, node_pool_config in cnf['node-pools'].items():
         if node_pool_name != 'controlplane':
             if full:
                 status['node_pools'][node_pool_name] = {
-                    k: common.get_server_info(cnf['cluster']['name'], node_pool_name, k)
+                    k: common.get_server_info(cnf['cluster']['name'], node_pool_name, k, creds=creds)
                     for k in node_pool_config['nodes']
                 }
             else:
@@ -126,4 +130,11 @@ def cluster_status(cnf, full=False):
                         'name': common.get_server_name(cnf['cluster']['name'], node_pool_name, k, with_suffix=False)
                     } for k in node_pool_config['nodes']
                 }
+    if full:
+        status['kubectl_version'] = str(common.kubectl(cnf, controlplane_public_ip, 'version')).strip().split('\n')
+        status['kubectl_top_node'] = str(common.kubectl(cnf, controlplane_public_ip, 'top node')).strip().split('\n')
     return status
+
+
+class CloudcliApiException(Exception):
+    pass

@@ -11,6 +11,7 @@ cluster:
   #   memory: 4096
   # server: https://1.2.3.4:9345  # optional, in case you want to use a specific server as the main cluster server
   # token:  # optional, to use as the cluster join token, if not provided will try to get it from controlplane-1 node
+  # controlplane-node-name: testk8s-controlplane-1-09Ur8HM  # optional, if you want to specify the controlplane node name
 
 node-pools:
   # controlplane:  # optional, the controlplane node pool is created anyway for the first node

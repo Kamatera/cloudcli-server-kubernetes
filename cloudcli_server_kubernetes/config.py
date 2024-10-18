@@ -11,3 +11,4 @@ KAMATERA_API_CLIENT_ID = os.getenv("KAMATERA_API_CLIENT_ID")
 KAMATERA_API_SECRET = os.getenv("KAMATERA_API_SECRET")
 
 CLOUDCLI_DEBUG = os.getenv("CLOUDCLI_DEBUG", "no").lower() in ['1', 'true', "yes"]
+LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG" if CLOUDCLI_DEBUG else "INFO")

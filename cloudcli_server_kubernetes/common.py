@@ -1,14 +1,16 @@
 import os
 import json
+import logging
 import secrets
 import tempfile
 import subprocess
 
 import requests
 from ruamel.yaml import YAML
+from fastapi.responses import JSONResponse
 
 from . import config
-
+from .api import CloudcliApiException
 
 DEFAULT_NODE_CONFIG = {
     "image": "ubuntu_server_24.04_64-bit",
@@ -20,6 +22,10 @@ DEFAULT_NODE_CONFIG = {
     "billingcycle": "hourly",
     "monthlypackage": "",
 }
+
+
+def setup_logging(**kwargs):
+    logging.basicConfig(level=getattr(logging, config.LOG_LEVEL), **kwargs)
 
 
 def parse_file(file):
@@ -68,12 +74,19 @@ def parse_config(cnf):
     return cnf
 
 
-def cloudcli_server_request(path, **kwargs):
+def cloudcli_server_request(path, creds=None, **kwargs):
     url = "%s%s" % (config.KAMATERA_API_SERVER, path)
     method = kwargs.pop("method", "GET")
+    if creds is not None:
+        auth_client_id, auth_secret = creds
+    else:
+        auth_client_id = config.KAMATERA_API_CLIENT_ID
+        auth_secret = config.KAMATERA_API_SECRET
+    if not auth_client_id or not auth_secret:
+        raise CloudcliApiException("Auth credentials are missing")
     res = requests.request(method=method, url=url, headers={
-        "AuthClientId": config.KAMATERA_API_CLIENT_ID,
-        "AuthSecret": config.KAMATERA_API_SECRET,
+        "AuthClientId": auth_client_id,
+        "AuthSecret": auth_secret,
         "Content-Type": "application/json",
         "Accept": "application/json"
     }, **kwargs)
@@ -96,9 +109,9 @@ def get_server_name(cluster_name, nodepool_name, node_number=None, with_suffix=T
     return server_name
 
 
-def find_server_command_in_queue(command_info, cluster_name, nodepool_name, node_number):
+def find_server_command_in_queue(command_info, cluster_name, nodepool_name, node_number, creds=None):
     node_number = int(node_number)
-    status, res = cloudcli_server_request("/svc/queue")
+    status, res = cloudcli_server_request("/svc/queue", creds=creds)
     assert status == 200
     for row in res:
         if (
@@ -109,10 +122,10 @@ def find_server_command_in_queue(command_info, cluster_name, nodepool_name, node
     return None
 
 
-def get_server_info(cluster_name, nodepool_name, node_number):
+def get_server_info(cluster_name, nodepool_name, node_number, creds=None, override_node_name=None):
     status, res = cloudcli_server_request("/service/server/info", method="POST", json={
-        "name": f'{get_server_name(cluster_name, nodepool_name, node_number, with_suffix=False)}-.*'
-    })
+        "name": f'{get_server_name(cluster_name, nodepool_name, node_number, with_suffix=False)}-.*' if not override_node_name else override_node_name
+    }, creds=creds)
     if status != 200:
         assert 'No servers found' in res['message'], f'Unexpected error {status}: {res}'
         res = []
@@ -122,6 +135,13 @@ def get_server_info(cluster_name, nodepool_name, node_number):
         raise Exception(f"Multiple matching servers found: {','.join([s['name'] for s in res])}")
     else:
         return res[0]
+
+
+def get_controlplane_server_info(cnf, creds=None):
+    return get_server_info(
+        cnf['cluster']['name'], 'controlplane', 1, creds=creds,
+        override_node_name=cnf['cluster'].get('controlplane-server-name')
+    )
 
 
 def get_server_ips(server_info):
@@ -146,14 +166,34 @@ def ssh(cnf, ip, command):
         ], text=True)
 
 
-def get_cluster_server_token(cnf):
+def kubectl(cnf, ip, command):
+    return ssh(cnf, ip, f'KUBECONFIG=/etc/rancher/rke2/rke2.yaml /var/lib/rancher/rke2/bin/kubectl {command}')
+
+
+def get_cluster_server_token(cnf, creds=None, controlplane_server_info=None):
     cluster_server = cnf['cluster'].get('server')
     cluster_token = cnf['cluster'].get('token')
     if not cluster_server or not cluster_token:
-        server_info = get_server_info(cnf['cluster']['name'], 'controlplane', 1)
-        public_ip, private_ip = get_server_ips(server_info)
-    if not cluster_server:
-        cluster_server = f"https://{private_ip}:9345"
-    if not cluster_token:
-        cluster_token = ssh(cnf, public_ip, 'cat /var/lib/rancher/rke2/server/node-token').strip()
+        if not controlplane_server_info:
+            controlplane_server_info = get_controlplane_server_info(cnf, creds)
+        if not controlplane_server_info:
+            raise CloudcliApiException('Controlplane server not found')
+        public_ip, private_ip = get_server_ips(controlplane_server_info)
+        if not cluster_server:
+            cluster_server = f"https://{private_ip}:9345"
+        if not cluster_token:
+            cluster_token = ssh(cnf, public_ip, 'cat /var/lib/rancher/rke2/server/node-token').strip()
+    assert cluster_server and cluster_token, 'Cluster server and token are missing'
     return cluster_server, cluster_token
+
+
+class IndentedJSONResponse(JSONResponse):
+
+    def render(self, content) -> bytes:
+        return json.dumps(
+            content,
+            ensure_ascii=False,
+            allow_nan=False,
+            indent=2,
+            separators=(",", ":"),
+        ).encode("utf-8")
