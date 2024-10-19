@@ -10,8 +10,9 @@ from . import common, config, version, api
 router = APIRouter()
 
 
-def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=True):
+def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=True, extra_run=None):
     flags = flags or []
+    extra_run = extra_run or {}
     command = {
         "use": use,
         "short": short,
@@ -21,6 +22,7 @@ def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=Tru
             "cmd": "post",
             "path": f"/k8s/{use}",
             "method": "post",
+            **extra_run
         }
     }
     if kconfig:
@@ -106,7 +108,10 @@ async def add_worker(kconfig: str = Form(), nodepool_name: str = Form(), node_nu
 
 @router.post('/status', openapi_extra=get_openapi_extra(
     "status",
-    "Get Kubernetes cluster status (BETA)"
+    "Get Kubernetes cluster status (BETA)",
+    extra_run={
+        "ComplexJsonServerResponse": True,
+    }
 ))
 async def status(kconfig: str = Form(), full: bool = False, creds: tuple = Depends(get_creds)):
     return common.IndentedJSONResponse(api.cluster_status(common.parse_config(kconfig), full, creds=creds))
