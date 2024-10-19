@@ -28,7 +28,7 @@ def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=Tru
             {
                 "name": "kconfig",
                 "required": True,
-                "usage": "Path to Kamatera cluster configuration file in JSON or YAML format\n\n\nUse our server configuration interface at https://kamatera.github.io/kamateratoolbox/serverconfiggen_k8s.html to generate this configuration file",
+                "usage": "Path to Kamatera cluster configuration file in JSON or YAML format\nUse our server configuration interface at https://kamatera.github.io/kamateratoolbox/serverconfiggen_k8s.html to generate this configuration file",
             },
             *command["flags"]
         ]
