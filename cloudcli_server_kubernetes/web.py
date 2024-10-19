@@ -28,7 +28,7 @@ def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=Tru
             {
                 "name": "kconfig",
                 "required": True,
-                "usage": "Path to Kamatera cluster configuration file in JSON or YAML format",
+                "usage": "Path to Kamatera cluster configuration file in JSON or YAML format\n\n\nUse our server configuration interface at https://kamatera.github.io/kamateratoolbox/serverconfiggen_k8s.html to generate this configuration file",
             },
             *command["flags"]
         ]
@@ -72,7 +72,7 @@ async def root():
 
 @router.post('/create_cluster', openapi_extra=get_openapi_extra(
     "create_cluster",
-    "Create a cluster",
+    "Create a Kubernetes cluster (BETA)",
     wait=True
 ))
 async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
@@ -83,7 +83,7 @@ async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds
 
 @router.post('/add_worker', openapi_extra=get_openapi_extra(
     "add_worker",
-    "Add a worker node",
+    "Add a Kubernetes worker node to a nodepool (BETA)",
     [
         {
             "name": "nodepool_name",
@@ -106,7 +106,7 @@ async def add_worker(kconfig: str = Form(), nodepool_name: str = Form(), node_nu
 
 @router.post('/status', openapi_extra=get_openapi_extra(
     "status",
-    "Get cluster status"
+    "Get Kubernetes cluster status (BETA)"
 ))
 async def status(kconfig: str = Form(), full: bool = False, creds: tuple = Depends(get_creds)):
     return common.IndentedJSONResponse(api.cluster_status(common.parse_config(kconfig), full, creds=creds))
