@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-nginx
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: test-nginx
+  replicas: 10
+  template:
+    metadata:
+      labels:
+        app: test-nginx
+    spec:
+      terminationGracePeriodSeconds: 2
+      containers:
+        - name: nginx
+          # Pulled Oct 19, 2024
+          image: nginx@sha256:28402db69fec7c17e179ea87882667f1e054391138f77ffaf0c3eb388efc3ffb
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: test-nginx
+spec:
+  selector:
+    app: test-nginx
+  ports:
+  - name: "80"
+    port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: test-nginx
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: nginx.testk8s
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: test-nginx
+                port:
+                  number: 80

@@ -1,0 +1,51 @@
+services:
+  db:
+    # Pulled Oct 20, 2024
+    image: postgres:16@sha256:91f464e7ba0ad91a106c94cff079fb4384139291b8c0502fd36989cf2c788bbb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: "123456"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
+  rabbitmq:
+    # Pulled Oct 20, 2024
+    image: rabbitmq:4@sha256:29d08b0b96a51ec9f4c2ce76e636538dfb5e09a5ee62369d3f9ba9ce8b77f285
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+
+  worker:
+    build: .
+    entrypoint: ["celery", "-A", "cloudcli_server_kubernetes.celery", "worker", "--loglevel=info"]
+    environment:
+      CELERY_BROKER: "amqp://guest:guest@rabbitmq:5672"
+      CELERY_RESULT_BACKEND: "db+postgresql://postgres:123456@db:5432/postgres"
+
+  scheduler:
+    build: .
+    entrypoint: ["celery", "-A", "cloudcli_server_kubernetes.celery", "beat", "--loglevel=info"]
+    environment:
+      CELERY_BROKER: "amqp://guest:guest@rabbitmq:5672"
+      CELERY_RESULT_BACKEND: "db+postgresql://postgres:123456@db:5432/postgres"
+
+  flower:
+    build: .
+    ports:
+      - "5555:5555"
+    entrypoint: ["celery", "-A", "cloudcli_server_kubernetes.celery", "flower", "--loglevel=info"]
+    environment:
+      CELERY_BROKER: "amqp://guest:guest@rabbitmq:5672"
+      CELERY_RESULT_BACKEND: "db+postgresql://postgres:123456@db:5432/postgres"
+
+volumes:
+  db_data:
+  rabbitmq_data:

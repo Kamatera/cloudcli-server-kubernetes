@@ -1,10 +1,9 @@
 import logging
-import traceback
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, logger, Request, APIRouter, Depends, Form
 
-from . import common, config, version, api
+from . import common, config, version, tasks
 
 
 router = APIRouter()
@@ -12,11 +11,13 @@ router = APIRouter()
 
 def get_openapi_extra(use, short, flags=None, long=None, wait=False, kconfig=True, extra_run=None):
     flags = flags or []
-    extra_run = extra_run or {}
+    extra_run = extra_run or {
+        "ComplexJsonServerResponse": True,
+    }
     command = {
         "use": use,
         "short": short,
-        "long": long or short,
+        "long": f"{short}\n\n{long}" if long else short,
         "flags": flags,
         "run": {
             "cmd": "post",
@@ -72,20 +73,54 @@ async def root():
     return {"ok": True}
 
 
+@router.post('/task_status', openapi_extra=get_openapi_extra(
+    "task_status",
+    "Get task status",
+    [
+        {
+            "name": "task_id",
+            "required": True,
+            "usage": "Task ID",
+        }
+    ],
+    kconfig=False
+))
+async def task_status(task_id: str = Form(), creds: tuple = Depends(get_creds)):
+    return common.IndentedJSONResponse(common.get_task_status(task_id, creds))
+
+
 @router.post('/create_cluster', openapi_extra=get_openapi_extra(
     "create_cluster",
     "Create a Kubernetes cluster (BETA)",
-    wait=True
+    long="Create a new cluster or create all node pools / nodes in an existing cluster.\nSafe to run multiple times, only new nodes will be created and added to the relevant node pools in the cluster."
 ))
 async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
-    return [
-        api.create_cluster(common.parse_config(kconfig), creds=creds)
-    ]
+    return {
+        "task_id": tasks.create_cluster.delay(kconfig, creds).id
+    }
 
 
-@router.post('/add_worker', openapi_extra=get_openapi_extra(
-    "add_worker",
-    "Add a Kubernetes worker node to a nodepool (BETA)",
+@router.post('/create_nodepool', openapi_extra=get_openapi_extra(
+    "create_nodepool",
+    "Create a nodepool (BETA)",
+    [
+        {
+            "name": "nodepool_name",
+            "required": True,
+            "usage": "Nodepool name",
+        },
+    ],
+    long="Create a new nodepool in an existing cluster or create additional nodes in an existing nodepool.\nSafe to run multiple times, only new nodes will be created and added to the nodepool."
+))
+async def create_nodepool(kconfig: str = Form(), nodepool_name: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.create_nodepool.delay(kconfig, nodepool_name, creds).id
+    }
+
+
+@router.post('/create_node', openapi_extra=get_openapi_extra(
+    "create_node",
+    "Create a node (BETA)",
     [
         {
             "name": "nodepool_name",
@@ -96,25 +131,88 @@ async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds
             "name": "node_number",
             "required": True,
             "usage": "Node number",
-        }
+        },
     ],
-    wait=True
+    long="Create a new node in an existing nodepool.\nSafe to run multiple times, the node will be added only if it does not already exist in the nodepool."
 ))
-async def add_worker(kconfig: str = Form(), nodepool_name: str = Form(), node_number: str = Form(), creds: tuple = Depends(get_creds)):
-    return [
-        api.add_worker(common.parse_config(kconfig), nodepool_name, node_number, creds=creds)
-    ]
+async def create_node(kconfig: str = Form(), nodepool_name: str = Form(), node_number: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.create_node.delay(kconfig, nodepool_name, node_number, creds).id
+    }
+
+
+@router.post('/update_cluster', openapi_extra=get_openapi_extra(
+    "update_cluster",
+    "Update a Kubernetes cluster (BETA)",
+    long="Update an existing cluster and all node-pools and nodes - in case of configuration changes. Does not cause down-time."
+))
+async def update_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.update_cluster.delay(kconfig, creds).id
+    }
+
+
+@router.post('/update_nodepool', openapi_extra=get_openapi_extra(
+    "update_nodepool",
+    "Update a nodepool (BETA)",
+    [
+        {
+            "name": "nodepool_name",
+            "required": True,
+            "usage": "Nodepool name",
+        },
+    ],
+    long="Update an existing nodepool and all it's nodes - in case of configuration changes. Does not cause down-time."
+))
+async def update_nodepool(kconfig: str = Form(), nodepool_name: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.update_nodepool.delay(kconfig, nodepool_name, creds).id
+    }
+
+
+@router.post('/update_node', openapi_extra=get_openapi_extra(
+    "update_node",
+    "Update a node (BETA)",
+    [
+        {
+            "name": "nodepool_name",
+            "required": True,
+            "usage": "Nodepool name",
+        },
+        {
+            "name": "node_number",
+            "required": True,
+            "usage": "Node number",
+        },
+    ],
+    long="Update a single node - in case of configuration changes. Does not cause down-time."
+))
+async def update_node(kconfig: str = Form(), nodepool_name: str = Form(), node_number: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.update_node.delay(kconfig, nodepool_name, node_number, creds).id
+    }
 
 
 @router.post('/status', openapi_extra=get_openapi_extra(
     "status",
     "Get Kubernetes cluster status (BETA)",
-    extra_run={
-        "ComplexJsonServerResponse": True,
-    }
+    long="Get the status of the cluster and all it's node-pools and nodes."
 ))
-async def status(kconfig: str = Form(), full: bool = False, creds: tuple = Depends(get_creds)):
-    return common.IndentedJSONResponse(api.cluster_status(common.parse_config(kconfig), full, creds=creds))
+async def status(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.get_cluster_status.delay(kconfig, creds).id
+    }
+
+
+@router.post('/kubeconfig', openapi_extra=get_openapi_extra(
+    "kubeconfig",
+    "Get cluster kubeconfig (BETA)",
+    long="Get the kubeconfig file for the cluster."
+))
+async def status(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
+    return {
+        "task_id": tasks.get_kubeconfig.delay(kconfig, creds).id
+    }
 
 
 @asynccontextmanager
@@ -146,7 +244,7 @@ async def lifespan(app_):
 
 
 async def global_exception_handler(request: Request, exc: Exception):
-    if isinstance(exc, api.CloudcliApiException):
+    if isinstance(exc, common.CloudcliException):
         message = str(exc)
     else:
         message = "Internal Server Error. Please try again later."
@@ -156,7 +254,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     if config.CLOUDCLI_DEBUG:
         content.update({
             "exception": str(exc),
-            "traceback": traceback.format_exception(exc),
+            # "traceback": traceback.format_exception(exc),
         })
     return common.IndentedJSONResponse(
         status_code=500,

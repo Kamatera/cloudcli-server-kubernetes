@@ -15,7 +15,7 @@ cluster:
   # server: "https://1.2.3.4:9345"  # optional, in case you want to use a specific server as the main cluster server
   # token: "..." # optional, to use as the cluster join token, if not provided will try to get it from controlplane-1 node
   # controlplane-server-name: "testk8s-controlplane-1-09Ur8HM"  # optional, if you want to specify the controlplane node name
-  # allow-high-availability: true  # optional, if you want to enable high availability for the controlplane
+  allow-high-availability: true  # optional, if you want to enable high availability for the controlplane
   #                                # requires some work to setup, see https://docs.rke2.io/install/ha for details
   # default-rke2-server-config:  # optional, rke2 config which will be merged into the rke2 config for all server nodes (controlplane)
   #                              # see https://docs.rke2.io/reference/server_config for details
@@ -26,8 +26,8 @@ cluster:
   ##############################################################################################
 
 node-pools:
-  # controlplane:  # optional, the controlplane node pool is created anyway with 1 node
-  #   nodes: 1  # only if allow-high-availability is true you can set to 3 / 5 / 7 for HA cluster
+  controlplane:  # optional, the controlplane node pool is created anyway with 1 node
+    nodes: 3  # only if allow-high-availability is true you can set to 3 / 5 / 7 for HA cluster
   #   node-config:  # optional, default values for all nodes in this pool
   #   rke2-config:  # optional, rke2 config which will be merged into the rke2 config for all nodes in this pool
   worker1:
