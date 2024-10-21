@@ -67,13 +67,13 @@ async def get_creds(request: Request):
     return request.headers.get('AuthClientId'), request.headers.get('AuthSecret')
 
 
-@router.get("/", include_in_schema=False)
+@router.get("/k8s/", include_in_schema=False)
 async def root():
     logging.debug('Root endpoint called')
     return {"ok": True}
 
 
-@router.post('/task_status', openapi_extra=get_openapi_extra(
+@router.post('/k8s/task_status', openapi_extra=get_openapi_extra(
     "task_status",
     "Get task status",
     [
@@ -89,7 +89,7 @@ async def task_status(task_id: str = Form(), creds: tuple = Depends(get_creds)):
     return common.IndentedJSONResponse(common.get_task_status(task_id, creds))
 
 
-@router.post('/create_cluster', openapi_extra=get_openapi_extra(
+@router.post('/k8s/create_cluster', openapi_extra=get_openapi_extra(
     "create_cluster",
     "Create a Kubernetes cluster (BETA)",
     long="Create a new cluster or create all node pools / nodes in an existing cluster.\nSafe to run multiple times, only new nodes will be created and added to the relevant node pools in the cluster."
@@ -100,7 +100,7 @@ async def create_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds
     }
 
 
-@router.post('/create_nodepool', openapi_extra=get_openapi_extra(
+@router.post('/k8s/create_nodepool', openapi_extra=get_openapi_extra(
     "create_nodepool",
     "Create a nodepool (BETA)",
     [
@@ -118,7 +118,7 @@ async def create_nodepool(kconfig: str = Form(), nodepool_name: str = Form(), cr
     }
 
 
-@router.post('/create_node', openapi_extra=get_openapi_extra(
+@router.post('/k8s/create_node', openapi_extra=get_openapi_extra(
     "create_node",
     "Create a node (BETA)",
     [
@@ -141,7 +141,7 @@ async def create_node(kconfig: str = Form(), nodepool_name: str = Form(), node_n
     }
 
 
-@router.post('/update_cluster', openapi_extra=get_openapi_extra(
+@router.post('/k8s/update_cluster', openapi_extra=get_openapi_extra(
     "update_cluster",
     "Update a Kubernetes cluster (BETA)",
     long="Update an existing cluster and all node-pools and nodes - in case of configuration changes. Does not cause down-time."
@@ -152,7 +152,7 @@ async def update_cluster(kconfig: str = Form(), creds: tuple = Depends(get_creds
     }
 
 
-@router.post('/update_nodepool', openapi_extra=get_openapi_extra(
+@router.post('/k8s/update_nodepool', openapi_extra=get_openapi_extra(
     "update_nodepool",
     "Update a nodepool (BETA)",
     [
@@ -170,7 +170,7 @@ async def update_nodepool(kconfig: str = Form(), nodepool_name: str = Form(), cr
     }
 
 
-@router.post('/update_node', openapi_extra=get_openapi_extra(
+@router.post('/k8s/update_node', openapi_extra=get_openapi_extra(
     "update_node",
     "Update a node (BETA)",
     [
@@ -193,7 +193,7 @@ async def update_node(kconfig: str = Form(), nodepool_name: str = Form(), node_n
     }
 
 
-@router.post('/status', openapi_extra=get_openapi_extra(
+@router.post('/k8s/status', openapi_extra=get_openapi_extra(
     "status",
     "Get Kubernetes cluster status (BETA)",
     long="Get the status of the cluster and all it's node-pools and nodes."
@@ -204,7 +204,7 @@ async def status(kconfig: str = Form(), creds: tuple = Depends(get_creds)):
     }
 
 
-@router.post('/kubeconfig', openapi_extra=get_openapi_extra(
+@router.post('/k8s/kubeconfig', openapi_extra=get_openapi_extra(
     "kubeconfig",
     "Get cluster kubeconfig (BETA)",
     long="Get the kubeconfig file for the cluster."
@@ -266,6 +266,7 @@ app = FastAPI(
     version=version.VERSION,
     title='Kamatera Cloud CLI Kubernetes',
     lifespan=lifespan,
-    root_path='/k8s',
+    docs_url='/k8s/docs',
+    openapi_url='/k8s/openapi.json',
 )
 app.add_exception_handler(Exception, global_exception_handler)

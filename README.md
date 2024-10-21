@@ -58,3 +58,15 @@ docker compose up -d
 ```
 
 Access the API Docs at http://localhost:8080/docs
+
+## Production Deployment
+
+Push to main builds the Docker image
+
+Update the image sha [here](https://github.com/Kamatera/kamateratoolbox-iac/blob/main/apps/cloudcli/values.yaml#L12) and sync argocd
+
+After deploy check the cloudcli schema which depends on it (it updates every 1 minute):
+
+https://cloudcli.cloudwm.com/schema
+
+Make sure the version under the k8s command group matches the deployed version
