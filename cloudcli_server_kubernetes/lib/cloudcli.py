@@ -56,6 +56,7 @@ def find_server_command_in_queue(command_info, server_name_startswith, creds):
 
 
 def get_server_info(creds, name_startswith):
+    common.logging.debug(f'cloudcli get_server_info name_startswith={name_startswith}')
     status, res = cloudcli_server_request("/service/server/info", creds, method="POST", json={"name": f'{name_startswith}-.*'})
     if status != 200:
         assert 'No servers found' in res['message'], f'Unexpected error {status}: {res}'

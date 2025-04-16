@@ -5,7 +5,7 @@ Python CLI, API and Web App for managing Kamatera Kubernetes Clusters
 ## Local Development
 
 ```
-poetry install
+uv sync
 ```
 
 Create a `.env` file with the following content:
@@ -32,7 +32,7 @@ Create the cluster configuration file, you can use the example `tests/cluster_fu
 Create the cluster:
 
 ```
-poetry run cloudclik8s cluster create cluster.yaml --wait
+uv run cloudclik8s cluster create cluster.yaml --wait
 ```
 
 See more available commands in the cli:
@@ -48,6 +48,12 @@ poetry run uvicorn cloudcli_server_kubernetes.web:app --reload
 ```
 
 Access the API Docs at http://localhost:8000/docs
+
+Run unit tests
+
+```
+pytest -svvx
+```
 
 ## Local Development with Docker
 

@@ -107,7 +107,7 @@ class Node:
             cluster_token,
         )
         rke2_systemd_unit = rke2.get_rke2_systemd_unit(is_server)
-        output = self.ssh_run_script(f'''
+        self.ssh_run_script(f'''
             if systemctl is-active {rke2_systemd_unit}; then
                 echo RKE2 already installed
             else
@@ -161,7 +161,7 @@ class Node:
             cluster_server,
             cluster_token,
         )
-        output = self.ssh(rke2_update_script, server_info)
+        self.ssh(rke2_update_script, server_info)
         return {
             'nodepool_name': self.nodepool.name,
             'node_number': self.node_number,

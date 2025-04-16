@@ -13,7 +13,8 @@ class CloudcliException(Exception):
 
 
 def setup_logging(**kwargs):
-    logging.basicConfig(level=getattr(logging, config.LOG_LEVEL), **kwargs)
+    level = kwargs.pop('level', config.LOG_LEVEL)
+    logging.basicConfig(level=getattr(logging, level), **kwargs)
 
 
 class IndentedJSONResponse(JSONResponse):
@@ -31,8 +32,10 @@ class IndentedJSONResponse(JSONResponse):
 def wait_task_status(task_id, creds):
     task_status = get_task_status(task_id, creds)
     while task_status['state'] == 'PENDING':
+        logging.debug(task_status)
         time.sleep(5)
         task_status = get_task_status(task_id, creds)
+        logging.debug(task_status)
         print('.')
     return task_status
 
@@ -101,6 +104,7 @@ class CeleryRunnerResult:
                 self.result = None
                 self.error = str(e) if isinstance(e, CloudcliException) else 'An unexpected error occurred, please try again later'
                 self.traceback = traceback.format_exc()
+                logging.debug(self.traceback)
         return {
             '__result_type': 'CeleryRunnerResult',
             'object_name': self.object_name,
@@ -154,14 +158,14 @@ class CeleryRunnerResult:
             'state': state,
             'result': self.result,
             'error': self.error,
-            'meta': self.get_task_status_meta(),
+            'meta': self.get_task_status_meta() or {},
         }
 
     def get_multi_tasks_status(self, task_name, task_ids=None):
         state = 'PENDING'
         result = None
         error = None
-        meta = self.get_task_status_meta()
+        meta = self.get_task_status_meta() or {}
         task_ids = task_ids or []
         task_statuses = meta['subtasks'] = [get_task_status(task_id, self.creds) for task_id in task_ids]
         if self.error:

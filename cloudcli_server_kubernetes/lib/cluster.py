@@ -48,6 +48,7 @@ class Cluster:
         return cluster_server, cluster_token
 
     def get_status(self):
+        common.logging.debug('Cluster.get_status')
         controlplane_node = self.node_pools['controlplane'].get_node(1)
         controlplane_server_info = controlplane_node.get_server_info()
         controlplane_public_ip, controlplane_private_ip = controlplane_node.get_public_private_ips(controlplane_server_info)
@@ -110,7 +111,7 @@ class ClusterCeleryRunner:
 
     def create_update(self, task: celery.Task, create_update_task):
         cnf = self.cluster.cnf.export()
-        other_nodepools_group_result: GroupResult = celery.chain(
+        group_result: GroupResult = celery.chain(
             create_update_task.si(cnf, 'controlplane'),
             celery.group(
                 create_update_task.si(cnf, nodepool_name)
@@ -118,10 +119,13 @@ class ClusterCeleryRunner:
                 if nodepool_name != 'controlplane'
             )
         ).delay()
-        controlplane_result: GroupResult = other_nodepools_group_result.parent
+        task_ids = [group_result.id]
+        result = group_result
+        while result.parent:
+            task_ids.append(result.parent.id)
+            result = result.parent
         return {
-            'controlplane_task_id': controlplane_result.id,
-            'other_nodepools_task_ids': [c.id for c in other_nodepools_group_result.children]
+            'task_ids': task_ids,
         }
 
 
@@ -138,10 +142,7 @@ class ClusterCeleryRunnerResult(common.CeleryRunnerResult):
         if self.task_name in ['create', 'update']:
             return self.get_multi_tasks_status(
                 f'{self.task_name}_cluster',
-                [
-                    self.result['controlplane_task_id'],
-                    *self.result['other_nodepools_task_ids']
-                ] if not self.error else []
+                self.result['task_ids'] if not self.error else []
             )
         else:
             return super().get_task_status()

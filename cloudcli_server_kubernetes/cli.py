@@ -1,4 +1,6 @@
 import json
+import base64
+
 import click
 
 from .lib.cnf import Cnf
@@ -15,6 +17,12 @@ def cli_wait_task_status(task_id, wait):
     res.pop('meta', None)
     res.pop('result', None)
     print(json.dumps(res, indent=2))
+
+
+def parse_base64(data):
+    if data.startswith('BASE64:'):
+        data = base64.b64decode(data[7:]).decode('utf-8')
+    return data
 
 
 @click.group()
@@ -89,6 +97,7 @@ def kubeconfig(config):
 @click.argument('config')
 @click.option('--wait', is_flag=True)
 def create(config, wait):
+    config = parse_base64(config)
     cli_wait_task_status(tasks.create_cluster.delay(config, 'env').id, wait)
 
 
@@ -96,6 +105,7 @@ def create(config, wait):
 @click.argument('config')
 @click.option('--wait', is_flag=True)
 def update(config, wait):
+    config = parse_base64(config)
     cli_wait_task_status(tasks.update_cluster.delay(config, 'env').id, wait)
 
 

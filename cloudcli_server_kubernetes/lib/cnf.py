@@ -13,12 +13,15 @@ class CnfConfigError(common.CloudcliException):
 
 
 def parse_file(file):
-    file = os.path.expanduser(file)
-    if os.path.exists(file):
-        with open(file) as f:
-            return f.read()
+    if file:
+        file = os.path.expanduser(file)
+        if os.path.exists(file):
+            with open(file) as f:
+                return f.read()
+        else:
+            return file
     else:
-        return file
+        return None
 
 
 class CnfNodePool:
@@ -77,14 +80,18 @@ class Cnf:
             if os.path.exists(cnf):
                 with open(cnf) as f:
                     if cnf.endswith('.json'):
-                        cnf = json.load(f)
+                        try:
+                            cnf = json.load(f)
+                        except:
+                            raise CnfConfigError('Invalid JSON file')
                     elif cnf.endswith('.yaml'):
                         cnf = YAML(typ='safe').load(f)
                     else:
-                        raise ValueError(f'Unsupported file format: {cnf}')
+                        raise CnfConfigError('Unsupported file format')
             else:
-                if not isinstance(cnf, dict):
-                    cnf = json.loads(cnf)
+                cnf = YAML(typ='safe').load(cnf)
+        if not isinstance(cnf, dict):
+            raise CnfConfigError('Invalid config format')
         self.cnf = cnf
         if not self.cnf.get('__creds'):
             if creds == 'env':
@@ -110,51 +117,55 @@ class Cnf:
 
     @cached_property
     def auth_client_id(self) -> str:
-        return self.cnf['__creds'][0]
+        return self.cnf['__creds'][0] if self.cnf.get('__creds') else None
 
     @cached_property
     def auth_secret(self) -> str:
-        return self.cnf['__creds'][1]
+        return self.cnf['__creds'][1] if self.cnf.get('__creds') else None
 
     @cached_property
     def creds(self) -> tuple:
         return self.auth_client_id, self.auth_secret
 
     @cached_property
+    def cluster(self):
+        return self.cnf.get('cluster', {})
+
+    @cached_property
     def name(self) -> str:
-        return self.cnf['cluster']['name']
+        return self.cluster.get('name')
 
     @cached_property
     def datacenter(self) -> str:
-        return self.cnf['cluster']['datacenter']
+        return self.cluster.get('datacenter')
 
     @cached_property
     def ssh_key_private(self) -> str:
-        return parse_file(self.cnf['cluster']['ssh-key']['private'])
+        return parse_file(self.cluster.get('ssh-key', {}).get('private'))
 
     @cached_property
     def ssh_key_public(self) -> str:
-        return parse_file(self.cnf['cluster']['ssh-key']['public'])
+        return parse_file(self.cluster.get('ssh-key', {}).get('public'))
 
     @cached_property
     def private_network_name(self) -> str:
-        return self.cnf['cluster']['private-network']['name']
+        return self.cluster.get('private-network', {}).get('name')
 
     @cached_property
     def cluster_server(self) -> Optional[str]:
-        return self.cnf['cluster'].get('server')
+        return self.cluster.get('server')
 
     @cached_property
     def cluster_token(self) -> Optional[str]:
-        return self.cnf['cluster'].get('token')
+        return self.cluster.get('token')
 
     @cached_property
     def controlplane_server_name(self) -> Optional[str]:
-        return self.cnf['cluster'].get('controlplane-server-name')
+        return self.cluster.get('controlplane-server-name')
 
     @cached_property
     def allow_high_availability(self) -> bool:
-        return bool(self.cnf['cluster'].get('allow-high-availability'))
+        return bool(self.cluster.get('allow-high-availability'))
 
     @cached_property
     def default_node_config(self) -> dict:
@@ -170,7 +181,7 @@ class Cnf:
 
     @cached_property
     def node_pools(self) -> dict[str, CnfNodePool]:
-        node_pools = self.cnf.get('node-pools')
+        node_pools = self.cnf.get('node-pools', {})
         if 'controlplane' not in node_pools:
             node_pools['controlplane'] = {'nodes': 1}
         return {
